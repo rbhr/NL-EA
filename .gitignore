@@ -1,0 +1,28 @@
+# MT5 system directories (not part of our project)
+Files/
+Images/
+Include/
+Indicators/
+Logs/
+Profiles/
+Scripts/
+libraries/
+*.dat
+*.log
+Log.txt
+experts.dat
+
+# Compiled MQL5 binaries
+*.ex5
+
+# Node.js
+node_modules/
+package.json
+package-lock.json
+
+# Claude Code
+.claude/
+
+# OS
+Thumbs.db
+.DS_Store

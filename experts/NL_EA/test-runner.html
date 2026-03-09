@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MT5 NL-EA Test Runner</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg:       #0a0c0f;
+    --surface:  #111418;
+    --border:   #1e2328;
+    --border2:  #2a3040;
+    --text:     #c8d0dc;
+    --muted:    #556070;
+    --accent:   #00d4aa;
+    --accent2:  #0090ff;
+    --warn:     #ffaa00;
+    --danger:   #ff4455;
+    --pass:     #00d4aa;
+    --fail:     #ff4455;
+    --skip:     #556070;
+    --mono:     'JetBrains Mono', monospace;
+    --sans:     'Syne', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 24px 32px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .logo-mark {
+    width: 36px; height: 36px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 16px; color: var(--bg);
+    flex-shrink: 0;
+  }
+  header h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+  header span { font-size: 13px; color: var(--muted); font-family: var(--mono); }
+  .header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  #score-badge {
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border2);
+    background: var(--surface);
+    color: var(--muted);
+    transition: all 0.3s;
+  }
+  #score-badge.live { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Config bar ── */
+  .config-bar {
+    padding: 16px 32px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .config-bar label { font-size: 12px; color: var(--muted); font-family: var(--mono); white-space: nowrap; }
+  .config-bar input {
+    flex: 1;
+    min-width: 280px;
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 8px 12px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .config-bar input:focus { border-color: var(--accent); }
+  .config-bar input::placeholder { color: var(--muted); }
+
+  /* ── Controls ── */
+  .controls {
+    padding: 16px 32px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  button {
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 18px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  #run-all {
+    background: var(--accent);
+    color: var(--bg);
+  }
+  #run-all:hover { filter: brightness(1.1); }
+  #run-all:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-secondary {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border2);
+  }
+  .btn-secondary:hover { border-color: var(--muted); }
+  .filter-btns { display: flex; gap: 6px; margin-left: auto; }
+  .filter-btn {
+    font-size: 11px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    background: transparent;
+    border: 1px solid var(--border2);
+    color: var(--muted);
+  }
+  .filter-btn.active { border-color: var(--accent2); color: var(--accent2); }
+  #progress-bar {
+    height: 2px;
+    background: var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+  #progress-fill {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.3s;
+  }
+
+  /* ── Summary strip ── */
+  #summary {
+    display: none;
+    padding: 12px 32px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 13px;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  #summary.visible { display: flex; }
+  .sum-item { display: flex; align-items: center; gap: 6px; }
+  .sum-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* ── Main grid ── */
+  main {
+    flex: 1;
+    padding: 24px 32px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 12px;
+    align-content: start;
+  }
+
+  /* ── Test card ── */
+  .test-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .test-card:hover { border-color: var(--border2); }
+  .test-card.pass { border-left: 3px solid var(--pass); }
+  .test-card.fail { border-left: 3px solid var(--fail); }
+  .test-card.running { border-left: 3px solid var(--warn); }
+
+  .card-header {
+    padding: 12px 14px 10px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .test-id {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    background: var(--bg);
+    padding: 2px 7px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .test-instruction {
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--text);
+    flex: 1;
+  }
+  .run-single {
+    flex-shrink: 0;
+    background: transparent;
+    border: 1px solid var(--border2);
+    color: var(--muted);
+    padding: 3px 9px;
+    font-size: 11px;
+    border-radius: 4px;
+    margin-top: 1px;
+  }
+  .run-single:hover { border-color: var(--accent); color: var(--accent); }
+
+  .card-expected {
+    padding: 0 14px 10px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    border: 1px solid var(--border2);
+    color: var(--muted);
+  }
+  .tag.outcome { border-color: #2a3a50; color: var(--accent2); background: rgba(0,144,255,0.05); }
+  .tag.verb    { border-color: #2a402e; color: var(--accent);  background: rgba(0,212,170,0.05); }
+  .tag.noun    { border-color: #3a2a20; color: var(--warn);    background: rgba(255,170,0,0.05); }
+
+  .card-result {
+    display: none;
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .card-result.visible { display: block; }
+
+  .result-status {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .result-status.pass { color: var(--pass); }
+  .result-status.fail { color: var(--fail); }
+  .result-status.running { color: var(--warn); }
+
+  .result-got {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+  .tag.got-pass { border-color: rgba(0,212,170,0.4); color: var(--pass); background: rgba(0,212,170,0.06); }
+  .tag.got-fail { border-color: rgba(255,68,85,0.4);  color: var(--fail); background: rgba(255,68,85,0.06); }
+
+  .result-reason {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.5;
+    word-break: break-word;
+  }
+
+  .expand-json {
+    font-size: 11px;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    padding: 4px 0;
+    cursor: pointer;
+    font-family: var(--mono);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .expand-json:hover { color: var(--text); }
+
+  .raw-json {
+    display: none;
+    margin-top: 8px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 200px;
+    overflow-y: auto;
+    line-height: 1.5;
+  }
+  .raw-json.visible { display: block; }
+
+  /* ── Note card ── */
+  .note-card {
+    background: transparent;
+    border: 1px dashed var(--border2);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+    line-height: 1.5;
+  }
+  .note-card strong { color: var(--warn); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-mark">EA</div>
+  <div>
+    <h1>MT5 NL-EA Test Runner</h1>
+    <span>System Prompt v2.1 &nbsp;·&nbsp; 39 test cases &nbsp;·&nbsp; World Tech Edge</span>
+  </div>
+  <div class="header-right">
+    <span id="score-badge">0 / 39</span>
+  </div>
+</header>
+
+<div class="config-bar">
+  <label>API KEY</label>
+  <input type="password" id="api-key" placeholder="sk-ant-api03-..." spellcheck="false" />
+</div>
+
+<div class="controls">
+  <button id="run-all">Run All 39</button>
+  <button class="btn-secondary" id="run-failed">Re-run Failed</button>
+  <button class="btn-secondary" id="clear-all">Clear Results</button>
+  <div class="filter-btns">
+    <button class="filter-btn active" data-filter="all">All</button>
+    <button class="filter-btn" data-filter="pass">Pass</button>
+    <button class="filter-btn" data-filter="fail">Fail</button>
+    <button class="filter-btn" data-filter="pending">Pending</button>
+  </div>
+</div>
+
+<div id="progress-bar"><div id="progress-fill"></div></div>
+
+<div id="summary">
+  <div class="sum-item"><div class="sum-dot" style="background:var(--pass)"></div><span id="sum-pass">0 passed</span></div>
+  <div class="sum-item"><div class="sum-dot" style="background:var(--fail)"></div><span id="sum-fail">0 failed</span></div>
+  <div class="sum-item"><div class="sum-dot" style="background:var(--muted)"></div><span id="sum-pending">39 pending</span></div>
+  <div class="sum-item" style="margin-left:auto"><span id="sum-time" style="color:var(--muted);font-size:12px"></span></div>
+</div>
+
+<main id="test-grid"></main>
+
+<script>
+const SYSTEM_PROMPT = `## IDENTITY
+
+You are the intent extraction engine for the MT5 NL-EA system, built by World Tech Edge. Your sole function is to convert natural language trading instructions into structured JSON task objects. You are a translator, not a trading system.
+
+You never:
+- Look up prices, positions, account state, or any MT5 data
+- Make trading decisions or recommendations
+- Evaluate whether an instruction is wise or profitable
+- Add commentary, explanation, or prose outside the JSON response
+
+You always:
+- Return a single raw JSON object and nothing else
+- Follow the schema defined in this prompt exactly
+- Use the outcome model to signal confidence level
+- Let the EA handle all MT5 data resolution
+
+---
+
+## OUTPUT FORMAT
+
+Return ONLY a raw JSON object. No markdown. No backticks. No explanation. No preamble.
+
+The response envelope is always:
+
+{
+  "prompt_version": "2.1",
+  "outcome": "ACT" | "CLARIFY" | "DECLINE",
+  "outcome_reason": "one sentence explanation",
+  "task": { ...Task object... } | null,
+  "clarification_needed": "single clear question" | null,
+  "schema_notes": "brief note on anything unusual about this instruction" | null,
+  "decomposition": [
+    { "type": "trigger|filter|action|notify", "label": "...", "value": "..." }
+  ]
+}
+
+---
+
+## OUTCOME RULES
+
+### ACT
+Use when: intent is unambiguous AND maps cleanly to the schema primitives below.
+- Populate the full task object
+- Set clarification_needed to null
+- decomposition must have at least one entry
+
+### CLARIFY
+Use when: intent is ambiguous in a way that materially affects execution.
+- Set task to null
+- Set clarification_needed to a single, specific question
+- Do not ask multiple questions -- identify the most critical ambiguity only
+- Common clarification triggers:
+  - Units are unclear and matter for execution (pips vs dollars vs percent)
+  - "small", "big", "some", "a few" used without a threshold
+  - Instruction references "my trades" or "my positions" without any filter to identify them
+  - Time reference is ambiguous ("recent", "today's")
+
+### DECLINE
+Use when: instruction requires human trading judgment that must not be automated.
+- Set task to null
+- outcome_reason must explain specifically why this cannot be automated
+- DECLINE triggers (non-exhaustive):
+  - "rebalance", "optimise", "manage my risk", "reduce exposure" (no specific action)
+  - "decide what to trade", "find good trades", "tell me what to buy"
+  - Predictive: "close before the news", "exit if things go bad"
+  - Vague relative sizing with no threshold: "close my bigger positions", "reduce my larger trades"
+  - Superlative ranking without a defined metric: "close my biggest losing position", "close my worst trade", "exit my largest position" -- these require ranking positions by a criterion the operator has not defined (biggest by absolute loss? by pip loss? by volume?). There is no deterministic filter that maps to "biggest" or "largest" or "worst". Always DECLINE these -- do not attempt to infer a ranking.
+  - Meta-configuration: "be more conservative", "tighten everything up"
+  - Hedging instructions: "hedge my gold", "hedge my exposure", "protect my positions" -- always DECLINE. Even if the operator clarifies the instrument, the size and ratio require trading judgment. Do not CLARIFY, go straight to DECLINE.
+
+### BORDERLINE CASES
+- "close everything" / "close all positions" -> ACT with requires_confirmation: true (unambiguous intent, high risk)
+- "cancel all pending orders" -> ACT with requires_confirmation: true
+- "close all losing trades" -> ACT (profit_lt: 0 is unambiguous)
+- "close my small positions" -> CLARIFY (threshold for "small" is undefined)
+- "tighten my stops on gold" -> CLARIFY (by how much?)
+- "move all stops to breakeven" -> ACT (breakeven is a defined sl_type)
+- "trail my gold by 20 pips" -> ACT (trail_stop, unambiguous)
+- "trail my positions" -> CLARIFY (how many pips?)
+- "move my buy limit down 10 pips" -> ACT (modify_order, entry_offset_pips: -10)
+- "close by my XAUUSD" -> ACT (close_by, pairs opposite positions)
+- "set my buy limit to expire in 4 hours" -> ACT (modify_order, expiration_hours: 4)
+
+---
+
+## TASK OBJECT SCHEMA
+
+### Core Fields (always present in ACT)
+{
+  "verb": string,           // See VERBS
+  "noun": string,           // See NOUNS
+  "filters": FilterSet,     // See FILTERS -- always present, may be empty {}
+  "is_conditional": boolean,
+  "is_persistent": boolean,
+  "requires_confirmation": boolean
+}
+
+### VERBS
+"close_positions"   -- Close one or more open positions
+"modify_position"   -- Modify SL, TP on open position(s)
+"place_pending"     -- Place a pending limit or stop order
+"cancel_order"      -- Cancel one or more pending orders
+"partial_close"     -- Close a percentage of a position's volume
+"query"             -- Retrieve and aggregate data, return to operator
+"watch"             -- Monitor a condition; fire notification or sub-task when it fires
+"cancel_task"       -- Remove a task from the EA's active task queue
+"place_market"      -- Place a market order immediately at current price
+"modify_order"      -- Modify entry price, SL, TP, or expiration on pending order(s)
+"trail_stop"        -- Attach a trailing stop to position(s) that follows price
+"close_by"          -- Close opposite positions on same symbol against each other (saves spread)
+
+### NOUNS
+"positions"   -- Open positions (PositionSelect API)
+"orders"      -- Pending orders (OrderSelect API)
+"history"     -- Closed trade history (HistorySelect API)
+"account"     -- Account-level data (balance, equity, margin)
+"task"        -- An active task in the EA queue (used with cancel_task)
+
+### FILTERS
+FilterSet -- include only fields relevant to the instruction:
+{
+  "magic"?:      number,    // EA magic number
+  "symbol"?:     string,    // e.g. "XAUUSD", "EURUSD" -- always uppercase
+  "ticket"?:     number,    // specific position or order ticket number
+  "profit_lt"?:  number,    // floating P&L strictly less than this value
+  "profit_gte"?: number,    // floating P&L greater than or equal to this value
+  "type"?:       string,    // "buy"|"sell"|"buy_limit"|"sell_limit"|"buy_stop"|"sell_stop"
+  "comment"?:    string,    // position/order comment contains this string
+  "time_after"?: string     // ISO 8601 datetime -- records opened after this time
+}
+
+Symbol aliases to resolve:
+- "gold" -> "XAUUSD"
+- "silver" -> "XAGUSD"
+- "oil" -> "USOIL"
+- "euro" or "eurodollar" -> "EURUSD"
+- "cable" -> "GBPUSD"
+- "fiber" -> "EURUSD"
+- "loonie" -> "USDCAD"
+- "aussie" -> "AUDUSD"
+- "kiwi" -> "NZDUSD"
+- "yen" or "dollar-yen" -> "USDJPY"
+- "swissy" -> "USDCHF"
+- "nasdaq" -> "NAS100" (or "US100" -- use schema_notes to flag ambiguity)
+- "dow" -> "US30"
+- "s&p" or "sp500" -> "US500"
+
+### LIFECYCLE FLAGS
+is_conditional: true   -- task has a trigger that must fire before action executes
+is_persistent: true    -- task monitors over time (runs on every tick)
+requires_confirmation: true -- EA must seek operator confirmation before executing
+
+Set requires_confirmation: true when:
+- Action affects multiple positions/orders with no ticket filter
+- Verb is close_positions or cancel_order with no ticket filter
+- cancel_task with empty filters (clears entire queue)
+- Instruction explicitly requests confirmation ("tell me first", "let me know before", "seek approval")
+
+---
+
+## OPTIONAL TASK FIELDS
+
+### trigger (required when is_conditional: true)
+{
+  "type": "profit_gte"|"profit_lt"|"price_crosses"|"new_position_opened"|"tick",
+  "value"?: number,    // threshold (profit amount or price level)
+  "ticket"?: number,   // scope to specific ticket
+  "magic"?: number     // scope to specific magic number
+}
+
+### on_trigger (array of Task objects, fired when trigger condition is met)
+Used for compound instructions: "when X happens, do Y and Z"
+Each element follows the same Task schema.
+
+### cancel_condition (auto-cancel a pending order when condition is met)
+{
+  "type": "price_below_entry"|"price_above_entry"|"time_elapsed",
+  "value"?: number     // seconds (for time_elapsed only)
+}
+
+### modifications (used with modify_position, modify_order, partial_close, trail_stop)
+{
+  "sl_type"?:           "breakeven"|"price"|"pips",
+  "sl_value"?:          number,
+  "tp_type"?:           "price"|"pips",
+  "tp_value"?:          number,
+  "reduce_volume_pct"?: number,   // 0-100, percentage to reduce volume by
+  "trail_pips"?:        number    // trailing stop distance in pips (used with trail_stop verb)
+}
+
+### pending_order (used with place_pending and modify_order)
+{
+  "type":               "buy_limit"|"sell_limit"|"buy_stop"|"sell_stop",
+  "entry_offset_pips"?: number,   // offset from current price at placement time
+  "entry_price"?:       number,   // absolute price (if explicitly stated)
+  "sl_pips"?:           number,
+  "tp_pips"?:           number,
+  "volume"?:            number,   // lots (omit if not specified -- EA uses default)
+  "expiration_hours"?:  number    // hours until order expires (e.g. 4.0 = cancel if not filled in 4 hours)
+}
+
+Note: entry_offset_pips is negative for below current price, positive for above.
+The EA resolves this to an absolute price at placement time. Never calculate prices.
+For modify_order: entry_offset_pips is relative to the order's CURRENT entry price (not market price).
+IMPORTANT: For pending orders (place_pending), volume is OPTIONAL -- if not specified, omit it and the EA uses a default. Do NOT CLARIFY for missing volume on pending orders. Only CLARIFY for missing volume on place_market.
+
+### market_order (used with place_market)
+{
+  "direction":  "buy"|"sell",
+  "volume":     number,   // lots -- REQUIRED, CLARIFY if not specified
+  "sl_pips"?:   number,   // CLARIFY if not specified (do not assume)
+  "tp_pips"?:   number
+}
+Rules for place_market:
+- Volume MUST be specified -- if missing, CLARIFY
+- SL is strongly recommended -- if missing, CLARIFY
+- Never calculate entry price -- EA uses current market price
+- Symbol goes in filters.symbol
+
+### query_operation (used with query verb)
+{
+  "aggregate": "sum"|"count"|"avg"|"list",
+  "field":     "profit"|"volume"|"symbol"|"ticket"|"type"|"swap"
+}
+
+### notification (used with watch verb)
+{
+  "channel": "telegram",
+  "message_template": string    // supports: {ticket} {symbol} {profit} {volume} {type} {magic}
+}
+
+---
+
+## COMPOUND INSTRUCTIONS
+
+When an instruction has a trigger condition AND one or more actions, the outer task is always a watcher:
+- The outer verb MUST be "watch"
+- Set is_conditional: true, is_persistent: true on the outer task
+- Put ALL actions in the on_trigger array as separate task objects
+- The outer task monitors; the on_trigger tasks execute when the condition fires
+
+Example: "when ticket 123 hits $100 profit, reduce volume by 10% AND set SL to breakeven"
+-> outer verb: "watch", trigger: profit_gte=100, on_trigger: [partial_close, modify_position]
+
+This also applies to single-action conditional tasks like "set breakeven on ticket 555 when it hits $200":
+-> outer verb: "watch", trigger: profit_gte=200, on_trigger: [modify_position sl_type=breakeven]
+
+---
+
+## CONFIRMATION + QUERY COMPOUND
+
+Instruction: "close all losing trades with magic 94737 but tell me the P&L impact first"
+
+This maps to a standard close_positions with requires_confirmation: true.
+The P&L pre-check before confirmation is standard EA behaviour for all confirmation-required
+close operations -- it does not need to be represented separately in the task schema.
+Simply set requires_confirmation: true.
+
+---
+
+## NEW VERB RULES
+
+### modify_order
+- Used to change entry price, SL, TP, or expiration on PENDING orders (not positions)
+- Identify orders via filters (ticket, magic, symbol, type)
+- New entry price: use pending_order.entry_price (absolute) or pending_order.entry_offset_pips (relative to current entry)
+- New SL/TP: use modifications.sl_type/sl_value and modifications.tp_type/tp_value
+- New expiration: use pending_order.expiration_hours
+- Only include fields being changed -- omitted fields keep their current values
+- Example: "move my buy limit down 10 pips" -> modify_order with entry_offset_pips: -10
+
+### trail_stop
+- Attaches a trailing stop that moves SL as price moves in favour
+- ALWAYS set: is_conditional: true, is_persistent: true, trigger.type: "tick"
+- Set modifications.trail_pips to the trailing distance
+- Identify positions via filters (symbol, magic, ticket, type)
+- EA handles the logic: BUY SL trails below BID, SELL SL trails above ASK, SL never moves backwards
+- Example: "trail my gold by 20 pips" -> trail_stop, filters.symbol: XAUUSD, trail_pips: 20
+
+### close_by
+- Closes opposite positions (BUY vs SELL) on the same symbol against each other
+- Saves spread compared to closing each at market individually
+- REQUIRES filters.symbol -- always CLARIFY if symbol is missing
+- Identify which positions via filters (symbol, magic, type)
+- Example: "close by my XAUUSD positions" -> close_by, filters.symbol: XAUUSD
+
+---
+
+## CRITICAL RULES
+
+1. Return ONLY raw JSON -- no markdown fences, no backtick blocks, no explanation text
+2. filters is always present -- use empty object {} if no filters apply
+3. Never populate both filters.ticket and trigger.ticket for the same position
+4. Never calculate prices, pips, or profit values -- the EA does all arithmetic
+5. Symbol names always uppercase in output regardless of how operator wrote them
+6. entry_offset_pips: negative = below current price, positive = above
+7. When instruction says "notify me" without a specific action -> verb is "watch" with notification
+8. When instruction says "cancel my task watching X" -> verb is "cancel_task", noun is "task"
+9. decomposition must accurately reflect the parsed intent -- it is used for operator transparency
+10. prompt_version must always be "2.1" exactly`;
+
+const TESTS = [
+  // ONE-SHOT ACT
+  { id:"T01", cat:"One-Shot", instruction:"close all losing trades with magic 94737",                          outcome:"ACT",     verb:"close_positions", noun:"positions" },
+  { id:"T02", cat:"One-Shot", instruction:"close all buy positions on EURUSD",                                 outcome:"ACT",     verb:"close_positions", noun:"positions" },
+  { id:"T03", cat:"One-Shot", instruction:"cancel all pending orders on gold",                                 outcome:"ACT",     verb:"cancel_order",    noun:"orders"    },
+  { id:"T04", cat:"One-Shot", instruction:"cancel order ticket 987654",                                        outcome:"ACT",     verb:"cancel_order",    noun:"orders"    },
+  { id:"T05", cat:"One-Shot", instruction:"sum the net P&L for all trades with magic 3848",                    outcome:"ACT",     verb:"query",           noun:"positions" },
+  { id:"T06", cat:"One-Shot", instruction:"how many open gold positions do I have",                            outcome:"ACT",     verb:"query",           noun:"positions" },
+  { id:"T07", cat:"One-Shot", instruction:"what is my current equity",                                         outcome:"ACT",     verb:"query",           noun:"account"   },
+  { id:"T08", cat:"One-Shot", instruction:"move stop loss to breakeven on all XAUUSD positions",               outcome:"ACT",     verb:"modify_position", noun:"positions" },
+  { id:"T09", cat:"One-Shot", instruction:"close everything",                                                  outcome:"ACT",     verb:"close_positions", noun:"positions" },
+  { id:"T10", cat:"One-Shot", instruction:"stop watching everything",                                          outcome:"ACT",     verb:"cancel_task",     noun:"task"      },
+  // CONDITIONAL
+  { id:"T11", cat:"Conditional", instruction:"when ticket 123456789 is in $100 profit reduce volume 10% and set SL to breakeven", outcome:"ACT", verb:"watch", noun:"positions", note:"Compound -- on_trigger should have 2 sub-tasks" },
+  { id:"T12", cat:"Conditional", instruction:"buy gold limit 20 pips below current price SL 5 pips cancel if price drops below entry", outcome:"ACT", verb:"place_pending", noun:"orders" },
+  { id:"T13", cat:"Conditional", instruction:"notify me whenever magic 88877 opens a new trade",              outcome:"ACT",     verb:"watch",           noun:"positions" },
+  { id:"T14", cat:"Conditional", instruction:"alert me on telegram when any GBPUSD position goes into 50 pip profit", outcome:"ACT", verb:"watch",        noun:"positions" },
+  { id:"T15", cat:"Conditional", instruction:"set breakeven on ticket 555 when it hits $200 profit",          outcome:"ACT",     verb:"watch",           noun:"positions" },
+  { id:"T16", cat:"Conditional", instruction:"place a sell stop on cable 15 pips below current price with a 10 pip stop", outcome:"ACT", verb:"place_pending", noun:"orders" },
+  { id:"T17", cat:"Conditional", instruction:"stop watching ticket 123",                                       outcome:"ACT",     verb:"cancel_task",     noun:"task"      },
+  { id:"T18", cat:"Conditional", instruction:"tell me when any losing trade with magic 7001 gets to minus $500", outcome:"ACT",  verb:"watch",           noun:"positions" },
+  // CLARIFY
+  { id:"T19", cat:"Clarify",    instruction:"close my small gold positions",                                   outcome:"CLARIFY" },
+  { id:"T20", cat:"Clarify",    instruction:"tighten up my stops on EURUSD",                                   outcome:"CLARIFY" },
+  { id:"T21", cat:"Clarify",    instruction:"reduce volume on ticket 99 by 500",                               outcome:"CLARIFY" },
+  { id:"T22", cat:"Clarify",    instruction:"close my recent trades",                                          outcome:"CLARIFY" },
+  { id:"T23", cat:"Clarify",    instruction:"close half my losing positions",                                  outcome:"CLARIFY" },
+  { id:"T24", cat:"Clarify*",   instruction:"move all my stops to breakeven",                                  outcome:"ACT",     verb:"modify_position", noun:"positions", note:"Deliberately ACT -- 'all' is unambiguous" },
+  // DECLINE
+  { id:"T25", cat:"Decline",    instruction:"rebalance my portfolio to reduce overall risk",                   outcome:"DECLINE" },
+  { id:"T26", cat:"Decline",    instruction:"find me some good trades to take",                                outcome:"DECLINE" },
+  { id:"T27", cat:"Decline",    instruction:"close my positions before the news hits",                         outcome:"DECLINE" },
+  { id:"T28", cat:"Decline",    instruction:"be more conservative with my stop losses from now on",            outcome:"DECLINE" },
+  { id:"T29", cat:"Decline",    instruction:"close my biggest losing position",                                outcome:"DECLINE", note:"Superlative -- always DECLINE not CLARIFY" },
+  { id:"T30", cat:"Decline",    instruction:"hedge my gold exposure",                                          outcome:"DECLINE", note:"Hedging always DECLINE never CLARIFY" },
+  // NEW VERB ACT
+  { id:"T31", cat:"New Verbs",  instruction:"buy 0.5 lots of gold with a 30 pip stop",                         outcome:"ACT",     verb:"place_market",    noun:"positions" },
+  { id:"T32", cat:"New Verbs",  instruction:"trail my gold positions by 20 pips",                              outcome:"ACT",     verb:"trail_stop",      noun:"positions", note:"Must have is_conditional=true, is_persistent=true, trigger.type=tick" },
+  { id:"T33", cat:"New Verbs",  instruction:"close by my XAUUSD positions",                                    outcome:"ACT",     verb:"close_by",        noun:"positions" },
+  { id:"T34", cat:"New Verbs",  instruction:"move my buy limit on gold down 10 pips",                          outcome:"ACT",     verb:"modify_order",    noun:"orders"    },
+  { id:"T35", cat:"New Verbs",  instruction:"set my buy limit on EURUSD to expire in 4 hours",                 outcome:"ACT",     verb:"modify_order",    noun:"orders"    },
+  { id:"T36", cat:"New Verbs",  instruction:"sell 1.0 lot EURUSD SL 20 pips TP 40 pips",                       outcome:"ACT",     verb:"place_market",    noun:"positions" },
+  // NEW VERB CLARIFY
+  { id:"T37", cat:"New Clarify", instruction:"buy some gold",                                                   outcome:"CLARIFY", note:"Volume missing -- place_market requires explicit volume" },
+  { id:"T38", cat:"New Clarify", instruction:"trail my gold positions",                                         outcome:"CLARIFY", note:"Trail distance (pips) not specified" },
+  { id:"T39", cat:"New Clarify", instruction:"close by my positions",                                           outcome:"CLARIFY", note:"Symbol required for close_by" },
+];
+
+const state = {
+  results: {},
+  filter: 'all',
+  running: false,
+};
+
+function getApiKey() { return document.getElementById('api-key').value.trim(); }
+
+async function runTest(test) {
+  const card = document.getElementById(`card-${test.id}`);
+  const resultEl = card.querySelector('.card-result');
+  const statusEl = card.querySelector('.result-status');
+  const gotEl = card.querySelector('.result-got');
+  const reasonEl = card.querySelector('.result-reason');
+  const jsonEl = card.querySelector('.raw-json');
+
+  card.className = 'test-card running';
+  resultEl.classList.add('visible');
+  statusEl.className = 'result-status running';
+  statusEl.textContent = '⟳ Running...';
+  gotEl.innerHTML = '';
+  reasonEl.textContent = '';
+  jsonEl.textContent = '';
+  jsonEl.classList.remove('visible');
+
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    statusEl.className = 'result-status fail';
+    statusEl.textContent = '✗ No API key';
+    card.className = 'test-card fail';
+    state.results[test.id] = 'fail';
+    return false;
+  }
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: test.instruction }],
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`);
+
+    const raw = data.content?.[0]?.text || '';
+    let parsed;
+    try {
+      parsed = JSON.parse(raw.replace(/^```json\s*/,'').replace(/```\s*$/,'').trim());
+    } catch(e) {
+      throw new Error(`JSON parse failed: ${raw.slice(0,120)}`);
+    }
+
+    const gotOutcome = parsed.outcome || '?';
+    const gotVerb    = parsed.task?.verb || null;
+    const gotNoun    = parsed.task?.noun || null;
+
+    // Check pass/fail
+    let passed = gotOutcome === test.outcome;
+    if (passed && test.verb) passed = gotVerb === test.verb;
+    if (passed && test.noun) passed = gotNoun === test.noun;
+
+    // Render got tags
+    const outcomeClass = gotOutcome === test.outcome ? 'got-pass' : 'got-fail';
+    gotEl.innerHTML = `<span class="tag ${outcomeClass}">${gotOutcome}</span>`;
+    if (gotVerb) {
+      const verbClass = (!test.verb || gotVerb === test.verb) ? 'got-pass' : 'got-fail';
+      gotEl.innerHTML += `<span class="tag ${verbClass}">${gotVerb}</span>`;
+    }
+    if (gotNoun) {
+      const nounClass = (!test.noun || gotNoun === test.noun) ? 'got-pass' : 'got-fail';
+      gotEl.innerHTML += `<span class="tag ${nounClass}">${gotNoun}</span>`;
+    }
+
+    if (passed) {
+      statusEl.className = 'result-status pass';
+      statusEl.textContent = '✓ Pass';
+      card.className = 'test-card pass';
+      state.results[test.id] = 'pass';
+    } else {
+      statusEl.className = 'result-status fail';
+      statusEl.textContent = '✗ Fail';
+      card.className = 'test-card fail';
+      state.results[test.id] = 'fail';
+    }
+
+    reasonEl.textContent = parsed.outcome_reason || parsed.clarification_needed || '';
+    jsonEl.textContent = JSON.stringify(parsed, null, 2);
+    return passed;
+
+  } catch(err) {
+    statusEl.className = 'result-status fail';
+    statusEl.textContent = '✗ Error';
+    reasonEl.textContent = err.message;
+    card.className = 'test-card fail';
+    state.results[test.id] = 'fail';
+    return false;
+  }
+}
+
+function updateSummary() {
+  const total   = TESTS.length;
+  const passed  = Object.values(state.results).filter(v => v === 'pass').length;
+  const failed  = Object.values(state.results).filter(v => v === 'fail').length;
+  const pending = total - passed - failed;
+
+  document.getElementById('score-badge').textContent = `${passed} / ${total}`;
+  document.getElementById('score-badge').className = passed > 0 ? 'live' : '';
+  document.getElementById('sum-pass').textContent    = `${passed} passed`;
+  document.getElementById('sum-fail').textContent    = `${failed} failed`;
+  document.getElementById('sum-pending').textContent = `${pending} pending`;
+  document.getElementById('progress-fill').style.width = `${(passed + failed) / total * 100}%`;
+
+  if (passed + failed > 0) document.getElementById('summary').classList.add('visible');
+}
+
+function applyFilter() {
+  TESTS.forEach(t => {
+    const card = document.getElementById(`card-${t.id}`);
+    const res = state.results[t.id] || 'pending';
+    if (state.filter === 'all') { card.style.display = ''; return; }
+    if (state.filter === 'pass'    && res === 'pass')    { card.style.display = ''; return; }
+    if (state.filter === 'fail'    && res === 'fail')    { card.style.display = ''; return; }
+    if (state.filter === 'pending' && res === 'pending') { card.style.display = ''; return; }
+    card.style.display = 'none';
+  });
+}
+
+async function runAll(testsToRun) {
+  if (state.running) return;
+  state.running = true;
+  document.getElementById('run-all').disabled = true;
+  const start = Date.now();
+
+  for (const test of testsToRun) {
+    await runTest(test);
+    updateSummary();
+    applyFilter();
+    await new Promise(r => setTimeout(r, 300)); // small delay to avoid rate limits
+  }
+
+  const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+  document.getElementById('sum-time').textContent = `Completed in ${elapsed}s`;
+  state.running = false;
+  document.getElementById('run-all').disabled = false;
+}
+
+function buildGrid() {
+  const grid = document.getElementById('test-grid');
+  grid.innerHTML = '';
+
+  let lastCat = null;
+  TESTS.forEach(test => {
+    if (test.cat !== lastCat) {
+      lastCat = test.cat;
+    }
+
+    const card = document.createElement('div');
+    card.className = 'test-card';
+    card.id = `card-${test.id}`;
+
+    const expectedTags = `
+      <span class="tag outcome">${test.outcome}</span>
+      ${test.verb ? `<span class="tag verb">${test.verb}</span>` : ''}
+      ${test.noun ? `<span class="tag noun">${test.noun}</span>` : ''}
+      ${test.note ? `<span class="tag" title="${test.note}" style="cursor:help">⚑ note</span>` : ''}
+    `;
+
+    card.innerHTML = `
+      <div class="card-header">
+        <span class="test-id">${test.id}</span>
+        <span class="test-instruction">${test.instruction}</span>
+        <button class="run-single" data-id="${test.id}">Run</button>
+      </div>
+      <div class="card-expected">${expectedTags}</div>
+      <div class="card-result">
+        <div class="result-status"></div>
+        <div class="result-got"></div>
+        <div class="result-reason"></div>
+        <button class="expand-json">show json</button>
+        <div class="raw-json"></div>
+      </div>
+    `;
+    grid.appendChild(card);
+
+    card.querySelector('.run-single').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await runTest(test);
+      updateSummary();
+      applyFilter();
+    });
+
+    card.querySelector('.expand-json').addEventListener('click', function() {
+      const json = card.querySelector('.raw-json');
+      json.classList.toggle('visible');
+      this.textContent = json.classList.contains('visible') ? 'hide json' : 'show json';
+    });
+  });
+}
+
+// Wire up controls
+document.getElementById('run-all').addEventListener('click', () => runAll(TESTS));
+document.getElementById('run-failed').addEventListener('click', () => {
+  const failed = TESTS.filter(t => state.results[t.id] === 'fail' || !state.results[t.id]);
+  runAll(failed);
+});
+document.getElementById('clear-all').addEventListener('click', () => {
+  state.results = {};
+  TESTS.forEach(t => {
+    const card = document.getElementById(`card-${t.id}`);
+    card.className = 'test-card';
+    card.querySelector('.card-result').classList.remove('visible');
+    card.querySelector('.raw-json').classList.remove('visible');
+  });
+  document.getElementById('progress-fill').style.width = '0%';
+  document.getElementById('summary').classList.remove('visible');
+  document.getElementById('score-badge').textContent = '0 / 39';
+  document.getElementById('score-badge').className = '';
+});
+
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    state.filter = this.dataset.filter;
+    applyFilter();
+  });
+});
+
+buildGrid();
+</script>
+</body>
+</html>
