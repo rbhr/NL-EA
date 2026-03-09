@@ -37,6 +37,7 @@ input ENUM_EA_MODE InpStartupMode      = EA_MODE_TRAINING;// Startup mode
 input double       InpConfirmThreshold = 500.0;           // P&L confirm threshold ($)
 input long         InpMagicNumber      = 0;               // Default Magic Number
 input string       InpOrderComment     = "NL_EA";         // Default Order Comment
+input bool         InpForceUnlock      = false;           // Force unlock on startup
 
 //+------------------------------------------------------------------+
 //| Globals                                                          |
@@ -58,6 +59,51 @@ int OnInit()
 
    long chat_id = StringToInteger(InpTelegramChatId);
    g_telegram.Init(InpTelegramToken, chat_id);
+
+   //── Account lock check ─────────────────────────────────────
+   long my_account = AccountInfoInteger(ACCOUNT_LOGIN);
+   string my_broker = AccountInfoString(ACCOUNT_COMPANY);
+   long locked_account = 0;
+   long stale_pin_id   = 0;
+
+   if(g_telegram.GetPinnedLockAccount(locked_account, stale_pin_id))
+     {
+      if(locked_account != my_account)
+        {
+         if(InpForceUnlock)
+           {
+            Print("NL_EA: Force-unlocking channel from account ", locked_account);
+           }
+         else
+           {
+            string err = "NL_EA REFUSED: Channel locked by account " +
+                         IntegerToString(locked_account) +
+                         "\nThis EA is on account " + IntegerToString(my_account) +
+                         " (" + my_broker + ")" +
+                         "\nUnload the other EA first, or set Force Unlock = true";
+            Alert(err);
+            g_telegram.Send(err);
+            return INIT_FAILED;
+           }
+        }
+     }
+
+   //── Acquire lock: send + pin ───────────────────────────────
+   string lock_text = "NL_EA_LOCK:" + IntegerToString(my_account) +
+                      "\nAccount: " + IntegerToString(my_account) +
+                      " (" + my_broker + ")" +
+                      "\nSince: " + TimeToString(TimeGMT(), TIME_DATE | TIME_SECONDS) + " UTC";
+   long lock_id = g_telegram.SendAndGetId(lock_text);
+   if(lock_id > 0)
+     {
+      g_telegram.PinMessage(lock_id);
+      g_telegram.SetLockMsgId(lock_id);
+      Print("NL_EA: Channel locked. Pin msg_id=", lock_id);
+     }
+   else
+      Print("NL_EA: WARNING - could not send lock message");
+
+   //── Continue normal init ───────────────────────────────────
    g_claude.Init(InpClaudeApiKey, CLAUDE_SYSTEM_PROMPT);
    g_executor.Init(InpMagicNumber, InpOrderComment);
 
@@ -68,6 +114,8 @@ int OnInit()
      { Print("NL_EA: Timer failed"); return INIT_FAILED; }
 
    g_telegram.Send("NL_EA v4.0 online\nMode: " + g_state.ModeLabel() +
+                   "\nAccount: " + IntegerToString(my_account) +
+                   " (" + my_broker + ")" +
                    "\nSymbol: " + _Symbol + "\nReady for instructions");
 
    Print("=== NL_EA ready. Mode: ", g_state.ModeLabel(), " ===");
@@ -78,7 +126,18 @@ int OnInit()
 void OnDeinit(const int reason)
   {
    EventKillTimer();
-   g_telegram.Send("NL_EA offline (reason " + IntegerToString(reason) + ")");
+
+   //── Release account lock ──────────────────────────────────
+   long lock_id = g_telegram.LockMsgId();
+   if(lock_id > 0)
+     {
+      g_telegram.UnpinMessage(lock_id);
+      Print("NL_EA: Lock released. Unpinned msg_id=", lock_id);
+     }
+
+   g_telegram.Send("NL_EA offline (reason " + IntegerToString(reason) + ")\n"
+                   "Account: " + IntegerToString(AccountInfoInteger(ACCOUNT_LOGIN)) +
+                   " released");
    Print("=== NL_EA deinit reason=", reason, " ===");
   }
 
@@ -325,9 +384,27 @@ void HandleCommand(string cmd)
                       + " tasks cancelled\nMT5 positions unchanged\nEA idle");
       return;
      }
+   if(c == "/unlock")
+     {
+      // Unpin our own lock if we have one
+      long own_lock = g_telegram.LockMsgId();
+      if(own_lock > 0)
+        {
+         g_telegram.UnpinMessage(own_lock);
+         g_telegram.SetLockMsgId(0);
+        }
+      // Also unpin any stale lock from a crashed EA
+      long stale_acct = 0, stale_id = 0;
+      if(g_telegram.GetPinnedLockAccount(stale_acct, stale_id))
+        {
+         if(stale_id > 0) g_telegram.UnpinMessage(stale_id);
+        }
+      g_telegram.Send("CHANNEL UNLOCKED\nAny account can now start an EA on this channel.");
+      return;
+     }
 
    g_telegram.Send("Unknown command: " + cmd +
-                   "\nAvailable: /live  /train  /tasks  /status  /stop");
+                   "\nAvailable: /live  /train  /tasks  /status  /stop  /unlock");
   }
 
 //+------------------------------------------------------------------+
