@@ -36,7 +36,7 @@ input int          InpPollIntervalMs   = 1000;            // Poll interval (ms)
 input ENUM_EA_MODE InpStartupMode      = EA_MODE_TRAINING;// Startup mode
 input double       InpConfirmThreshold = 500.0;           // P&L confirm threshold ($)
 input long         InpMagicNumber      = 0;               // Default Magic Number
-input string       InpOrderComment     = "NL-EA";         // Default Order Comment
+input string       InpOrderComment     = "Natural Language EA"; // Default Order Comment
 input bool         InpForceUnlock      = false;           // Force unlock on startup
 
 //+------------------------------------------------------------------+
