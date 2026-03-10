@@ -1,6 +1,6 @@
 //+------------------------------------------------------------------+
-//| NL_EA.mq5  --  Natural Language Expert Advisor                  |
-//| World Tech Edge  --  MT5 NL-EA  --  Step 4                      |
+//| Natural Language EA.mq5  --  v4.1                               |
+//| World Tech Edge  --  MT5 Natural Language EA                    |
 //|                                                                  |
 //| OnTimer() -- polls Telegram, processes messages                  |
 //| OnTick()  -- evaluates task queue triggers                       |
@@ -15,7 +15,7 @@
 
 
 #property copyright "World Tech Edge"
-#property version   "4.0"
+#property version   "4.1"
 #property strict
 
 #include "State.mqh"
@@ -36,7 +36,7 @@ input int          InpPollIntervalMs   = 1000;            // Poll interval (ms)
 input ENUM_EA_MODE InpStartupMode      = EA_MODE_TRAINING;// Startup mode
 input double       InpConfirmThreshold = 500.0;           // P&L confirm threshold ($)
 input long         InpMagicNumber      = 0;               // Default Magic Number
-input string       InpOrderComment     = "NL_EA";         // Default Order Comment
+input string       InpOrderComment     = "NL-EA";         // Default Order Comment
 input bool         InpForceUnlock      = false;           // Force unlock on startup
 
 //+------------------------------------------------------------------+
@@ -51,11 +51,11 @@ CExecutor  g_executor;
 //+------------------------------------------------------------------+
 int OnInit()
   {
-   Print("=== NL_EA v4.0 init ===");
+   Print("=== Natural Language EA v4.1 init ===");
 
-   if(InpClaudeApiKey   == "") { Alert("NL_EA: Claude API Key required");   return INIT_PARAMETERS_INCORRECT; }
-   if(InpTelegramToken  == "") { Alert("NL_EA: Telegram Bot Token required");return INIT_PARAMETERS_INCORRECT; }
-   if(InpTelegramChatId == "") { Alert("NL_EA: Telegram Chat ID required");  return INIT_PARAMETERS_INCORRECT; }
+   if(InpClaudeApiKey   == "") { Alert("NL-EA: Claude API Key required");   return INIT_PARAMETERS_INCORRECT; }
+   if(InpTelegramToken  == "") { Alert("NL-EA: Telegram Bot Token required");return INIT_PARAMETERS_INCORRECT; }
+   if(InpTelegramChatId == "") { Alert("NL-EA: Telegram Chat ID required");  return INIT_PARAMETERS_INCORRECT; }
 
    long chat_id = StringToInteger(InpTelegramChatId);
    g_telegram.Init(InpTelegramToken, chat_id);
@@ -72,11 +72,11 @@ int OnInit()
         {
          if(InpForceUnlock)
            {
-            Print("NL_EA: Force-unlocking channel from account ", locked_account);
+            Print("NL-EA: Force-unlocking channel from account ", locked_account);
            }
          else
            {
-            string err = "NL_EA REFUSED: Channel locked by account " +
+            string err = "REFUSED: Channel locked by account " +
                          IntegerToString(locked_account) +
                          "\nThis EA is on account " + IntegerToString(my_account) +
                          " (" + my_broker + ")" +
@@ -98,10 +98,10 @@ int OnInit()
      {
       g_telegram.PinMessage(lock_id);
       g_telegram.SetLockMsgId(lock_id);
-      Print("NL_EA: Channel locked. Pin msg_id=", lock_id);
+      Print("NL-EA: Channel locked. Pin msg_id=", lock_id);
      }
    else
-      Print("NL_EA: WARNING - could not send lock message");
+      Print("NL-EA: WARNING - could not send lock message");
 
    //── Continue normal init ───────────────────────────────────
    g_claude.Init(InpClaudeApiKey, CLAUDE_SYSTEM_PROMPT);
@@ -111,14 +111,14 @@ int OnInit()
    else                               g_state.SetTraining();
 
    if(!EventSetMillisecondTimer(InpPollIntervalMs))
-     { Print("NL_EA: Timer failed"); return INIT_FAILED; }
+     { Print("NL-EA: Timer failed"); return INIT_FAILED; }
 
-   g_telegram.Send("NL_EA v4.0 online\nMode: " + g_state.ModeLabel() +
+   g_telegram.Send("Natural Language EA v4.1 online\nMode: " + g_state.ModeLabel() +
                    "\nAccount: " + IntegerToString(my_account) +
                    " (" + my_broker + ")" +
                    "\nSymbol: " + _Symbol + "\nReady for instructions");
 
-   Print("=== NL_EA ready. Mode: ", g_state.ModeLabel(), " ===");
+   Print("=== Natural Language EA v4.1 ready. Mode: ", g_state.ModeLabel(), " ===");
    return INIT_SUCCEEDED;
   }
 
@@ -132,13 +132,13 @@ void OnDeinit(const int reason)
    if(lock_id > 0)
      {
       g_telegram.UnpinMessage(lock_id);
-      Print("NL_EA: Lock released. Unpinned msg_id=", lock_id);
+      Print("NL-EA: Lock released. Unpinned msg_id=", lock_id);
      }
 
-   g_telegram.Send("NL_EA offline (reason " + IntegerToString(reason) + ")\n"
+   g_telegram.Send("Natural Language EA offline (reason " + IntegerToString(reason) + ")\n"
                    "Account: " + IntegerToString(AccountInfoInteger(ACCOUNT_LOGIN)) +
                    " released");
-   Print("=== NL_EA deinit reason=", reason, " ===");
+   Print("=== Natural Language EA deinit reason=", reason, " ===");
   }
 
 //+------------------------------------------------------------------+
@@ -421,7 +421,7 @@ void HandleCommand(string cmd)
 
    if(c == "/start")
      {
-      string help = "NL-EA -- Natural Language Expert Advisor\n"
+      string help = "Natural Language EA v4.1\n"
                    + "Mode: " + g_state.ModeLabel() + "\n\n"
                    + "COMMANDS:\n"
                    + "/start    Show this menu\n"
