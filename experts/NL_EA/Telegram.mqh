@@ -16,7 +16,11 @@ struct STgMessage
    long     chat_id;
    string   text;
    datetime date;
-   void Clear() { update_id=0; chat_id=0; text=""; date=0; }
+   bool     is_callback;        // true if from inline button press
+   string   callback_data;      // e.g. "approve", "flag", "focus_on", "focus_off"
+   string   callback_query_id;  // needed to dismiss spinner via AnswerCallbackQuery
+   void Clear() { update_id=0; chat_id=0; text=""; date=0;
+                   is_callback=false; callback_data=""; callback_query_id=""; }
   };
 
 class CTelegram
@@ -47,6 +51,8 @@ public:
    bool   Send(string text);
    long   SendAndGetId(string text);
    bool   SendWithMode(string text, string mode_label);
+   bool   SendWithButtons(string text, const string &buttons[][2], int num_buttons);
+   bool   AnswerCallbackQuery(string query_id);
 
    // ── Account lock via Telegram pinned message ──
    bool   GetPinnedLockAccount(long &locked_account, long &pinned_msg_id);
@@ -62,7 +68,7 @@ int CTelegram::Poll(STgMessage &out[])
    ArrayResize(out, 0);
    string url = TG_BASE_URL + m_token + "/getUpdates"
                 + "?timeout=0&offset=" + IntegerToString(m_last_update_id + 1)
-                + "&allowed_updates=[\"message\"]";
+                + "&allowed_updates=[\"message\",\"callback_query\"]";
    string resp;
    if(!HttpGet(url, resp)) return 0;
 
@@ -80,19 +86,44 @@ int CTelegram::Poll(STgMessage &out[])
       long uid = results[i]["update_id"].ToInt();
       if(uid > m_last_update_id) m_last_update_id = uid;
 
+      //── Path A: regular text message ─────────────────
       string txt = results[i]["message"]["text"].ToStr();
-      if(txt == "") continue;
+      if(txt != "")
+        {
+         long cid = results[i]["message"]["chat"]["id"].ToInt();
+         if(m_chat_id != 0 && cid != m_chat_id)
+           { Print("[Telegram] Ignoring unauthorised chat_id=", cid); continue; }
 
-      long cid = results[i]["message"]["chat"]["id"].ToInt();
-      if(m_chat_id != 0 && cid != m_chat_id)
-        { Print("[Telegram] Ignoring unauthorised chat_id=", cid); continue; }
+         ArrayResize(out, count + 1);
+         out[count].Clear();
+         out[count].update_id = uid;
+         out[count].chat_id   = cid;
+         out[count].text      = txt;
+         out[count].date      = (datetime)results[i]["message"]["date"].ToInt();
+         count++;
+         continue;
+        }
 
-      ArrayResize(out, count + 1);
-      out[count].update_id = uid;
-      out[count].chat_id   = cid;
-      out[count].text      = txt;
-      out[count].date      = (datetime)results[i]["message"]["date"].ToInt();
-      count++;
+      //── Path B: inline keyboard callback ─────────────
+      string cb_id = results[i]["callback_query"]["id"].ToStr();
+      if(cb_id != "")
+        {
+         long cid = results[i]["callback_query"]["message"]["chat"]["id"].ToInt();
+         if(m_chat_id != 0 && cid != m_chat_id)
+           { Print("[Telegram] Ignoring unauthorised callback chat_id=", cid); continue; }
+
+         string cb_data = results[i]["callback_query"]["data"].ToStr();
+         ArrayResize(out, count + 1);
+         out[count].Clear();
+         out[count].update_id          = uid;
+         out[count].chat_id            = cid;
+         out[count].text               = cb_data;
+         out[count].date               = (datetime)TimeCurrent();
+         out[count].is_callback        = true;
+         out[count].callback_data      = cb_data;
+         out[count].callback_query_id  = cb_id;
+         count++;
+        }
      }
    return count;
   }
@@ -117,6 +148,44 @@ bool CTelegram::Send(string text)
 bool CTelegram::SendWithMode(string text, string mode_label)
   {
    return Send("[" + mode_label + "]\n" + text);
+  }
+
+//+------------------------------------------------------------------+
+bool CTelegram::SendWithButtons(string text, const string &buttons[][2], int num_buttons)
+  {
+   if(m_chat_id == 0) { Print("[Telegram] No chat_id set"); return false; }
+
+   // Build inline_keyboard JSON: one row, all buttons side by side
+   string kb = "[[";
+   for(int i = 0; i < num_buttons; i++)
+     {
+      if(i > 0) kb += ",";
+      kb += "{\"text\":\"" + EscapeJson(buttons[i][0]) + "\","
+          + "\"callback_data\":\"" + EscapeJson(buttons[i][1]) + "\"}";
+     }
+   kb += "]]";
+
+   string url  = TG_BASE_URL + m_token + "/sendMessage";
+   string body = "{\"chat_id\":" + IntegerToString(m_chat_id)
+               + ",\"text\":\"" + EscapeJson(text) + "\""
+               + ",\"reply_markup\":{\"inline_keyboard\":" + kb + "}}";
+   string resp;
+   if(!HttpPost(url, body, resp)) return false;
+
+   CJAVal root;
+   if(!root.Deserialize(resp)) return false;
+   if(!root["ok"].ToBool()) { Print("[Telegram] SendWithButtons err: ", root["description"].ToStr()); return false; }
+   return true;
+  }
+
+//+------------------------------------------------------------------+
+bool CTelegram::AnswerCallbackQuery(string query_id)
+  {
+   string url  = TG_BASE_URL + m_token + "/answerCallbackQuery";
+   string body = "{\"callback_query_id\":\"" + query_id + "\"}";
+   string resp;
+   if(!HttpPost(url, body, resp)) return false;
+   return true;
   }
 
 //+------------------------------------------------------------------+

@@ -146,7 +146,7 @@ void OnTimer()
   {
    STgMessage msgs[];
    int n = g_telegram.Poll(msgs);
-   for(int i = 0; i < n; i++) ProcessMessage(msgs[i].text);
+   for(int i = 0; i < n; i++) ProcessMessage(msgs[i]);
   }
 
 //+------------------------------------------------------------------+
@@ -158,9 +158,36 @@ void OnTick()
   }
 
 //+------------------------------------------------------------------+
-void ProcessMessage(string text)
+void ProcessMessage(STgMessage &msg)
   {
-   Print("[EA] Received: ", text);
+   Print("[EA] Received: ", msg.text, msg.is_callback ? " [callback]" : "");
+
+   //── Inline keyboard callback ─────────────────────────
+   if(msg.is_callback)
+     {
+      g_telegram.AnswerCallbackQuery(msg.callback_query_id);
+
+      if(msg.callback_data == "approve")
+        {
+         if(!g_state.IsPendingReview()) { g_telegram.Send("No pending action"); return; }
+         HandlePendingReview("yes");
+         return;
+        }
+      if(msg.callback_data == "flag")
+        {
+         if(!g_state.IsPendingReview()) { g_telegram.Send("No pending action"); return; }
+         HandlePendingReview("wrong");
+         return;
+        }
+      if(msg.callback_data == "focus_on")  { HandleFocusToggle(true);  return; }
+      if(msg.callback_data == "focus_off") { HandleFocusToggle(false); return; }
+
+      Print("[EA] Unknown callback_data: ", msg.callback_data);
+      return;
+     }
+
+   //── Regular text message ─────────────────────────────
+   string text = msg.text;
    if(StringGetCharacter(text, 0) == '/') { HandleCommand(text); return; }
 
    switch(g_state.ConvState())
@@ -174,6 +201,14 @@ void ProcessMessage(string text)
 //+------------------------------------------------------------------+
 void HandleNewInstruction(string instruction)
   {
+   // Focus mode: prepend ticket context
+   if(g_state.FocusActive() && g_state.FocusTicket() > 0)
+     {
+      instruction = "regarding ticket " + IntegerToString((long)g_state.FocusTicket())
+                  + ": " + instruction;
+      Print("[EA] Focus context prepended: ", instruction);
+     }
+
    SClaudeResponse resp;
    if(!g_claude.Ask(instruction, resp))
      {
@@ -228,11 +263,13 @@ void DispatchActTask(STask &task, string task_json)
         }
       else
         {
-         int id = g_queue.Add(task);
-         g_telegram.SendWithMode("PROPOSED TASK -- Task #" + IntegerToString(id) + "\n"
-                                 + BuildTaskSummary(task) + "\n\n"
-                                 + "Reply: yes to activate  |  wrong to discard  |  or correct me",
-                                 "TRAINING");
+         int id = g_queue.Add(task, false);
+         string prop_text = "[TRAINING]\nPROPOSED TASK -- Task #" + IntegerToString(id) + "\n"
+                           + BuildTaskSummary(task) + "\n\nTap or type a correction:";
+         string btns[2][2];
+         btns[0][0] = "Activate";  btns[0][1] = "approve";
+         btns[1][0] = "Discard";   btns[1][1] = "flag";
+         g_telegram.SendWithButtons(prop_text, btns, 2);
          g_state.SetPendingReview(task_json, id);
         }
       return;
@@ -242,14 +279,23 @@ void DispatchActTask(STask &task, string task_json)
      {
       SExecResult result;
       g_executor.Execute(task, result);
+      // Focus mode: capture ticket from market orders
+      if(g_state.FocusActive() && result.success && result.opened_ticket > 0)
+        {
+         g_state.SetFocusTicket(result.opened_ticket);
+         result.summary += "\n\nFocus ticket: #" + IntegerToString((long)result.opened_ticket);
+        }
       g_telegram.SendWithMode(result.summary, "LIVE");
       g_state.SetIdle();
      }
    else
      {
-      g_telegram.SendWithMode("PROPOSED ACTION\n" + BuildTaskSummary(task) + "\n\n"
-                              + "Reply: yes to execute  |  wrong to flag  |  or correct me",
-                              "TRAINING");
+      string prop_text = "[TRAINING]\nPROPOSED ACTION\n" + BuildTaskSummary(task)
+                        + "\n\nTap or type a correction:";
+      string btns[2][2];
+      btns[0][0] = "Execute";  btns[0][1] = "approve";
+      btns[1][0] = "Wrong";    btns[1][1] = "flag";
+      g_telegram.SendWithButtons(prop_text, btns, 2);
       g_state.SetPendingReview(task_json, -99);
      }
   }
@@ -278,6 +324,12 @@ void HandlePendingReview(string text)
         }
       SExecResult result;
       g_executor.Execute(task, result);
+      // Focus mode: capture ticket from market orders
+      if(g_state.FocusActive() && result.success && result.opened_ticket > 0)
+        {
+         g_state.SetFocusTicket(result.opened_ticket);
+         result.summary += "\n\nFocus ticket: #" + IntegerToString((long)result.opened_ticket);
+        }
       g_telegram.SendWithMode(result.summary, "TRAINING");
       g_state.SetIdle();
       return;
@@ -367,6 +419,31 @@ void HandleCommand(string cmd)
    StringTrimLeft(c);
    StringTrimRight(c);
 
+   if(c == "/start")
+     {
+      string help = "NL-EA -- Natural Language Expert Advisor\n"
+                   + "Mode: " + g_state.ModeLabel() + "\n\n"
+                   + "COMMANDS:\n"
+                   + "/start    Show this menu\n"
+                   + "/live     Auto-execute mode\n"
+                   + "/train    Review-first mode\n"
+                   + "/status   Account overview\n"
+                   + "/tasks    Active task queue\n"
+                   + "/stop     Cancel all tasks\n"
+                   + "/unlock   Release channel lock\n"
+                   + "/focus    Sticky ticket mode\n\n"
+                   + "WHAT I CAN DO:\n"
+                   + "Open: \"buy 0.5 lots gold SL 30 pips\"\n"
+                   + "Close: \"close all losing trades\"\n"
+                   + "Modify: \"set SL to breakeven on 123\"\n"
+                   + "Pending: \"buy limit gold 20 pips below\"\n"
+                   + "Trail: \"trail ticket 123 by 5 pips\"\n"
+                   + "Watch: \"notify me when gold > $2000\"\n"
+                   + "Query: \"what is my total profit?\"\n"
+                   + "Close by: \"close by my XAUUSD\"";
+      g_telegram.Send(help);
+      return;
+     }
    if(c == "/live")
      { g_state.SetLive();     g_telegram.Send("LIVE MODE\nInstructions execute immediately.\nType /train to return to training mode."); return; }
    if(c == "/train")
@@ -386,14 +463,12 @@ void HandleCommand(string cmd)
      }
    if(c == "/unlock")
      {
-      // Unpin our own lock if we have one
       long own_lock = g_telegram.LockMsgId();
       if(own_lock > 0)
         {
          g_telegram.UnpinMessage(own_lock);
          g_telegram.SetLockMsgId(0);
         }
-      // Also unpin any stale lock from a crashed EA
       long stale_acct = 0, stale_id = 0;
       if(g_telegram.GetPinnedLockAccount(stale_acct, stale_id))
         {
@@ -402,9 +477,43 @@ void HandleCommand(string cmd)
       g_telegram.Send("CHANNEL UNLOCKED\nAny account can now start an EA on this channel.");
       return;
      }
+   if(c == "/focus" || c == "/focus on" || c == "/focus off")
+     {
+      if(c == "/focus on")  { HandleFocusToggle(true);  return; }
+      if(c == "/focus off") { HandleFocusToggle(false); return; }
+
+      // No argument -- show status + toggle buttons
+      string ft_text = "FOCUS MODE\nCurrently: " + (g_state.FocusActive() ? "ON" : "OFF");
+      if(g_state.FocusActive() && g_state.FocusTicket() > 0)
+         ft_text += "\nActive ticket: #" + IntegerToString((long)g_state.FocusTicket());
+      ft_text += "\n\nTap to toggle:";
+      string btns[2][2];
+      btns[0][0] = "ON";   btns[0][1] = "focus_on";
+      btns[1][0] = "OFF";  btns[1][1] = "focus_off";
+      g_telegram.SendWithButtons(ft_text, btns, 2);
+      return;
+     }
 
    g_telegram.Send("Unknown command: " + cmd +
-                   "\nAvailable: /live  /train  /tasks  /status  /stop  /unlock");
+                   "\nAvailable: /start /live /train /tasks /status /stop /unlock /focus");
+  }
+
+//+------------------------------------------------------------------+
+void HandleFocusToggle(bool on)
+  {
+   if(on)
+     {
+      g_state.SetFocusActive(true);
+      g_state.SetFocusTicket(0);
+      g_telegram.Send("FOCUS ON\nNext trade opened will set the active ticket.\n"
+                      "All subsequent instructions will reference that ticket.\n"
+                      "Send /focus off to disable.");
+     }
+   else
+     {
+      g_state.ClearFocus();
+      g_telegram.Send("FOCUS OFF\nInstructions interpreted without ticket context.");
+     }
   }
 
 //+------------------------------------------------------------------+

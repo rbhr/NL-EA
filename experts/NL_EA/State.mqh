@@ -26,6 +26,8 @@ private:
    string            m_pending_instruction;
    string            m_pending_task_json;
    int               m_pending_task_id;
+   bool              m_focus_active;
+   ulong             m_focus_ticket;
 
 public:
                      CState();
@@ -67,6 +69,13 @@ public:
    int               PendingTaskId()      { return m_pending_task_id;    }
    string            PendingInstruction() { return m_pending_instruction;}
 
+   // ── Focus mode (sticky ticket context) ──
+   bool              FocusActive()                 { return m_focus_active; }
+   void              SetFocusActive(bool on)       { m_focus_active = on; Print("[State] Focus -> ", on ? "ON" : "OFF"); }
+   ulong             FocusTicket()                 { return m_focus_ticket; }
+   void              SetFocusTicket(ulong ticket)  { m_focus_ticket = ticket; Print("[State] Focus ticket -> #", ticket); }
+   void              ClearFocus()                  { m_focus_active = false; m_focus_ticket = 0; Print("[State] Focus cleared"); }
+
    bool              IsApproval(string text);
    bool              IsFlag(string text);
   };
@@ -79,6 +88,8 @@ CState::CState()
    m_pending_task_json = "";
    m_pending_task_id   = -1;
    m_pending_instruction = "";
+   m_focus_active        = false;
+   m_focus_ticket        = 0;
   }
 
 //+------------------------------------------------------------------+

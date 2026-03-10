@@ -26,7 +26,8 @@ struct SExecResult
    bool   success;
    bool   silent;     // true = don't notify Telegram (e.g. trail_stop unchanged)
    string summary;
-   void Clear() { success=false; silent=false; summary=""; }
+   ulong  opened_ticket;  // ticket from place_market (for /focus mode)
+   void Clear() { success=false; silent=false; summary=""; opened_ticket=0; }
   };
 
 class CExecutor
@@ -902,6 +903,7 @@ bool CExecutor::Execute_PlaceMarket(STask &task, SExecResult &r)
             " vol=", task.market_order.volume, " ticket=", res.order,
             " price=", res.price, " retcode=", res.retcode);
       r.success = true;
+      r.opened_ticket = res.order;
       r.summary  = "MARKET ORDER PLACED" + nl;
       r.summary += dir + " " + DoubleToString(task.market_order.volume, 2) + " " + symbol + nl;
       r.summary += "Ticket: #" + IntegerToString((long)res.order) + nl;
