@@ -247,7 +247,8 @@ private:
 
 public:
                      CTaskQueue();
-   int               Add(STask &task);
+   int               Add(STask &task, bool start_active = true);
+   bool              Activate(int task_id);
    bool              Remove(int task_id);
    void              RemoveAll();
    int               Count()  { return m_count; }
@@ -266,17 +267,32 @@ CTaskQueue::CTaskQueue()
   }
 
 //+------------------------------------------------------------------+
-int CTaskQueue::Add(STask &task)
+int CTaskQueue::Add(STask &task, bool start_active = true)
   {
    int slot = FindSlot();
    if(slot < 0) { Print("[Queue] Full"); return -1; }
    task.id       = m_next_id++;
-   task.active   = true;
+   task.active   = start_active;
    task.created_at = TimeCurrent();
    m_tasks[slot] = task;
-   m_count++;
-   Print("[Queue] Added Task #", task.id, " verb=", VerbLabel(task.verb));
+   if(start_active) m_count++;
+   Print("[Queue] Added Task #", task.id, " verb=", VerbLabel(task.verb),
+         start_active ? " (active)" : " (pending approval)");
    return task.id;
+  }
+
+//+------------------------------------------------------------------+
+bool CTaskQueue::Activate(int task_id)
+  {
+   for(int i = 0; i < MAX_TASKS; i++)
+      if(m_tasks[i].id == task_id && !m_tasks[i].active)
+        {
+         m_tasks[i].active = true;
+         m_count++;
+         Print("[Queue] Activated Task #", task_id);
+         return true;
+        }
+   return false;
   }
 
 //+------------------------------------------------------------------+

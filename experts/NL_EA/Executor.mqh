@@ -24,8 +24,9 @@
 struct SExecResult
   {
    bool   success;
+   bool   silent;     // true = don't notify Telegram (e.g. trail_stop unchanged)
    string summary;
-   void Clear() { success=false; summary=""; }
+   void Clear() { success=false; silent=false; summary=""; }
   };
 
 class CExecutor
@@ -1125,6 +1126,7 @@ bool CExecutor::Execute_TrailStop(STask &task, SExecResult &r)
    if(trailed == 0 && unchanged == 0)
      {
       r.success = true;
+      r.silent  = true;
       r.summary = "TRAIL STOP: no positions matched filters";
       return true;
      }
@@ -1132,6 +1134,7 @@ bool CExecutor::Execute_TrailStop(STask &task, SExecResult &r)
    r.success = true;
    if(trailed > 0)
      {
+      r.silent   = false;  // SL moved -- notify operator
       r.summary  = "TRAIL STOP (" + DoubleToString(trail_pips, 1) + " pips)" + nl;
       r.summary += "Trailed: " + IntegerToString(trailed);
       if(unchanged > 0) r.summary += "  Unchanged: " + IntegerToString(unchanged);
@@ -1139,6 +1142,7 @@ bool CExecutor::Execute_TrailStop(STask &task, SExecResult &r)
      }
    else
      {
+      r.silent   = true;   // nothing changed -- stay quiet
       r.summary  = "TRAIL STOP: all " + IntegerToString(unchanged)
                    + " positions already within trail distance";
      }

@@ -228,7 +228,7 @@ void DispatchActTask(STask &task, string task_json)
         }
       else
         {
-         int id = g_queue.Add(task);
+         int id = g_queue.Add(task, false);  // inactive until approved
          g_telegram.SendWithMode("PROPOSED TASK -- Task #" + IntegerToString(id) + "\n"
                                  + BuildTaskSummary(task) + "\n\n"
                                  + "Reply: yes to activate  |  wrong to discard  |  or correct me",
@@ -271,6 +271,7 @@ void HandlePendingReview(string text)
         }
       if(pid > 0)
         {
+         g_queue.Activate(pid);
          g_telegram.SendWithMode("Task #" + IntegerToString(pid) + " ACTIVATED\n"
                                  + BuildTaskSummary(task), "TRAINING");
          g_state.SetIdle();
@@ -318,8 +319,12 @@ void HandleTriggeredTask(int task_id)
    Print("[EA] Task #", task_id, " triggered");
    SExecResult result;
    g_executor.Execute(task, result);
-   g_telegram.SendWithMode("TASK #" + IntegerToString(task_id) + " TRIGGERED\n" + result.summary,
-                           g_state.ModeLabel());
+
+   //── Only notify Telegram when something actually happened ──
+   if(!result.silent)
+      g_telegram.SendWithMode("TASK #" + IntegerToString(task_id) + " TRIGGERED\n" + result.summary,
+                              g_state.ModeLabel());
+
    if(!task.is_persistent) g_queue.Remove(task_id);
   }
 
@@ -421,6 +426,10 @@ string BuildTaskSummary(STask &task)
       case VERB_QUERY:           verb="query";           break;
       case VERB_WATCH:           verb="watch";           break;
       case VERB_PLACE_MARKET:    verb="place_market";    break;
+      case VERB_MODIFY_ORDER:    verb="modify_order";    break;
+      case VERB_TRAIL_STOP:      verb="trail_stop";      break;
+      case VERB_CLOSE_BY:        verb="close_by";        break;
+      case VERB_CANCEL_TASK:     verb="cancel_task";     break;
      }
    string s = "Verb: " + verb;
    if(task.filters.has_symbol) s += "  Symbol: " + task.filters.symbol;
@@ -436,6 +445,7 @@ string BuildTaskSummary(STask &task)
          case TRIGGER_PROFIT_LT:      s += "profit < $"  + DoubleToString(task.trigger.value,2); break;
          case TRIGGER_NEW_POS_OPENED: s += "new position opened"; break;
          case TRIGGER_PRICE_CROSSES:  s += "price crosses " + DoubleToString(task.trigger.value,5); break;
+         case TRIGGER_TICK:           s += "every tick"; break;
          default: s += "?";
         }
      }
