@@ -306,6 +306,7 @@ string CLAUDE_SYSTEM_PROMPT =
    "8. When instruction says \"cancel my task watching X\" -> verb is \"cancel_task\", noun is \"task\"\n" +
    "9. decomposition must accurately reflect the parsed intent -- it is used for operator transparency\n" +
    "10. prompt_version must always be \"2.1\" exactly\n" +
+   "11. \"close [ticket]\" -> use close_positions. The EA will automatically try cancel_order as fallback if no position matches.\n" +
    "\n" +
    "---\n" +
    "\n" +

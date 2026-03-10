@@ -663,7 +663,8 @@ Simply set requires_confirmation: true.
 7. When instruction says "notify me" without a specific action -> verb is "watch" with notification
 8. When instruction says "cancel my task watching X" -> verb is "cancel_task", noun is "task"
 9. decomposition must accurately reflect the parsed intent -- it is used for operator transparency
-10. prompt_version must always be "2.1" exactly`;
+10. prompt_version must always be "2.1" exactly
+11. "close [ticket]" -> use close_positions. The EA will automatically try cancel_order as fallback if no position matches.`;
 
 const TESTS = [
   // ONE-SHOT ACT

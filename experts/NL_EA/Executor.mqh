@@ -183,6 +183,12 @@ bool CExecutor::Execute_ClosePositions(STask &task, SExecResult &r)
 
    if(closed == 0 && failed == 0)
      {
+      //── Fallback: if ticket filter set, try cancel_order ────
+      if(task.filters.has_ticket)
+        {
+         Print("[Exec] No position matched ticket ", (long)task.filters.ticket, " -- trying cancel_order fallback");
+         return Execute_CancelOrder(task, r);
+        }
       r.success = true;
       r.summary = "CLOSE POSITIONS: no positions matched filters";
       return true;
@@ -484,6 +490,12 @@ bool CExecutor::Execute_CancelOrder(STask &task, SExecResult &r)
 
    if(cancelled == 0 && failed == 0)
      {
+      //── Fallback: if ticket filter set, try close_positions ─
+      if(task.filters.has_ticket)
+        {
+         Print("[Exec] No order matched ticket ", (long)task.filters.ticket, " -- trying close_positions fallback");
+         return Execute_ClosePositions(task, r);
+        }
       r.success = true;
       r.summary = "CANCEL ORDER: no pending orders matched filters";
       return true;
