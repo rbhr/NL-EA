@@ -228,7 +228,7 @@ void DispatchActTask(STask &task, string task_json)
         }
       else
         {
-         int id = g_queue.Add(task, false);  // inactive until approved
+         int id = g_queue.Add(task);
          g_telegram.SendWithMode("PROPOSED TASK -- Task #" + IntegerToString(id) + "\n"
                                  + BuildTaskSummary(task) + "\n\n"
                                  + "Reply: yes to activate  |  wrong to discard  |  or correct me",
@@ -271,7 +271,6 @@ void HandlePendingReview(string text)
         }
       if(pid > 0)
         {
-         g_queue.Activate(pid);
          g_telegram.SendWithMode("Task #" + IntegerToString(pid) + " ACTIVATED\n"
                                  + BuildTaskSummary(task), "TRAINING");
          g_state.SetIdle();
@@ -319,34 +318,14 @@ void HandleTriggeredTask(int task_id)
    Print("[EA] Task #", task_id, " triggered");
    SExecResult result;
    g_executor.Execute(task, result);
-
-   //── Only notify Telegram when something actually happened ──
-   if(!result.silent)
-      g_telegram.SendWithMode("TASK #" + IntegerToString(task_id) + " TRIGGERED\n" + result.summary,
-                              g_state.ModeLabel());
-
+   g_telegram.SendWithMode("TASK #" + IntegerToString(task_id) + " TRIGGERED\n" + result.summary,
+                           g_state.ModeLabel());
    if(!task.is_persistent) g_queue.Remove(task_id);
   }
 
 //+------------------------------------------------------------------+
 void HandleCancelTask(STask &task)
   {
-   //── Cancel by task_id (e.g. "cancel task 1") ───────────────
-   if(task.filters.has_task_id)
-     {
-      int tid = task.filters.task_id;
-      if(g_queue.Remove(tid))
-        {
-         g_telegram.SendWithMode("Task #" + IntegerToString(tid) + " CANCELLED\n"
-                                 + "MT5 positions unchanged", g_state.ModeLabel());
-        }
-      else
-         g_telegram.SendWithMode("No active task #" + IntegerToString(tid), g_state.ModeLabel());
-      g_state.SetIdle();
-      return;
-     }
-
-   //── Cancel all (no filters) ────────────────────────────────
    if(!task.filters.has_ticket && !task.filters.has_magic && !task.filters.has_symbol)
      {
       int count = g_queue.Count();
@@ -357,7 +336,6 @@ void HandleCancelTask(STask &task)
       return;
      }
 
-   //── Cancel by ticket (task watching that ticket) ───────────
    if(task.filters.has_ticket)
      {
       int ids[];
@@ -452,7 +430,75 @@ string BuildTaskSummary(STask &task)
    if(task.filters.has_symbol) s += "  Symbol: " + task.filters.symbol;
    if(task.filters.has_magic)  s += "  Magic: "  + IntegerToString(task.filters.magic);
    if(task.filters.has_ticket) s += "  Ticket: " + IntegerToString((long)task.filters.ticket);
+   if(task.filters.has_task_id) s += "  TaskID: " + IntegerToString(task.filters.task_id);
 
+   //── Modification details ──────────────────────────────────
+   if(task.modifications.sl_type != MOD_NONE)
+     {
+      string sl = "";
+      switch(task.modifications.sl_type)
+        {
+         case MOD_BREAKEVEN: sl = "breakeven"; break;
+         case MOD_PRICE:     sl = DoubleToString(task.modifications.sl_value, 5); break;
+         case MOD_PIPS:      sl = DoubleToString(task.modifications.sl_value, 1) + " pips"; break;
+        }
+      s += "\nSL: " + sl;
+     }
+   if(task.modifications.tp_type != MOD_NONE)
+     {
+      string tp = "";
+      switch(task.modifications.tp_type)
+        {
+         case MOD_PRICE: tp = DoubleToString(task.modifications.tp_value, 5); break;
+         case MOD_PIPS:  tp = DoubleToString(task.modifications.tp_value, 1) + " pips"; break;
+         default:        tp = DoubleToString(task.modifications.tp_value, 5); break;
+        }
+      s += "\nTP: " + tp;
+     }
+   if(task.modifications.has_trail_pips)
+      s += "\nTrail: " + DoubleToString(task.modifications.trail_pips, 1) + " pips";
+   if(task.modifications.has_reduce_volume_pct)
+      s += "\nReduce: " + DoubleToString(task.modifications.reduce_volume_pct, 0) + "%";
+
+   //── Market order details ──────────────────────────────────
+   if(task.market_order.direction != "")
+     {
+      s += "\nDirection: " + task.market_order.direction;
+      if(task.market_order.has_volume)  s += "  Vol: " + DoubleToString(task.market_order.volume, 2);
+      if(task.market_order.has_sl_pips) s += "  SL: " + DoubleToString(task.market_order.sl_pips, 1) + " pips";
+      if(task.market_order.has_tp_pips) s += "  TP: " + DoubleToString(task.market_order.tp_pips, 1) + " pips";
+     }
+
+   //── Pending order details ─────────────────────────────────
+   if(task.pending_order.type != PENDING_NONE)
+     {
+      string ptype = "";
+      switch(task.pending_order.type)
+        {
+         case PENDING_BUY_LIMIT:  ptype = "buy_limit";  break;
+         case PENDING_SELL_LIMIT: ptype = "sell_limit"; break;
+         case PENDING_BUY_STOP:   ptype = "buy_stop";   break;
+         case PENDING_SELL_STOP:  ptype = "sell_stop";  break;
+        }
+      s += "\nOrder: " + ptype;
+      if(task.pending_order.has_entry_price)       s += "  Entry: " + DoubleToString(task.pending_order.entry_price, 5);
+      if(task.pending_order.has_entry_offset_pips) s += "  Offset: " + DoubleToString(task.pending_order.entry_offset_pips, 1) + " pips";
+      if(task.pending_order.has_volume)            s += "  Vol: " + DoubleToString(task.pending_order.volume, 2);
+      if(task.pending_order.has_sl_pips)           s += "  SL: " + DoubleToString(task.pending_order.sl_pips, 1) + " pips";
+      if(task.pending_order.has_tp_pips)           s += "  TP: " + DoubleToString(task.pending_order.tp_pips, 1) + " pips";
+      if(task.pending_order.has_expiration_hours)  s += "  Expires: " + DoubleToString(task.pending_order.expiration_hours, 1) + "h";
+     }
+
+   //── Query details ─────────────────────────────────────────
+   if(task.query_op.aggregate != AGG_NONE)
+     {
+      string agg = "", fld = "";
+      switch(task.query_op.aggregate) { case AGG_SUM: agg="sum"; break; case AGG_COUNT: agg="count"; break; case AGG_AVG: agg="avg"; break; case AGG_LIST: agg="list"; break; }
+      switch(task.query_op.field)     { case FIELD_PROFIT: fld="profit"; break; case FIELD_VOLUME: fld="volume"; break; case FIELD_SYMBOL: fld="symbol"; break; case FIELD_TICKET: fld="ticket"; break; case FIELD_TYPE: fld="type"; break; case FIELD_SWAP: fld="swap"; break; }
+      s += "\nQuery: " + agg + "(" + fld + ")";
+     }
+
+   //── Trigger ───────────────────────────────────────────────
    if(task.trigger.type != TRIGGER_NONE)
      {
       s += "\nTrigger: ";
