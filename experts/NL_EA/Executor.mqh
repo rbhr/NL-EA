@@ -51,6 +51,7 @@ private:
 
    bool   PositionMatchesFilters(ulong ticket, STaskFilters &f);
    double PipsToPrice(string symbol, double pips);
+   ENUM_ORDER_TYPE_FILLING GetFilling(string symbol);
   };
 
 //+------------------------------------------------------------------+
@@ -160,7 +161,7 @@ bool CExecutor::Execute_ClosePositions(STask &task, SExecResult &r)
       req.type         = close_buy ? ORDER_TYPE_SELL : ORDER_TYPE_BUY;
       req.price        = NormalizeDouble(price, digits);
       req.deviation    = 10;
-      req.type_filling = ORDER_FILLING_IOC;
+      req.type_filling = GetFilling(symbol);
 
       if(OrderSend(req, res))
         {
@@ -394,7 +395,7 @@ bool CExecutor::Execute_PlacePending(STask &task, SExecResult &r)
    req.price        = entry_price;
    req.sl           = sl;
    req.tp           = tp;
-   req.type_filling = ORDER_FILLING_RETURN;
+   req.type_filling = GetFilling(task.filters.symbol);
    if(task.filters.has_magic)
       req.magic = (ulong)task.filters.magic;
    else
@@ -567,7 +568,7 @@ bool CExecutor::Execute_PartialClose(STask &task, SExecResult &r)
       req.type         = close_buy ? ORDER_TYPE_SELL : ORDER_TYPE_BUY;
       req.price        = NormalizeDouble(price, digits);
       req.deviation    = 10;
-      req.type_filling = ORDER_FILLING_IOC;
+      req.type_filling = GetFilling(symbol);
 
       if(OrderSend(req, res))
         {
@@ -805,6 +806,19 @@ bool CExecutor::PositionMatchesFilters(ulong ticket, STaskFilters &f)
    return true;
   }
 
+//+------------------------------------------------------------------+
+//| GetFilling -- auto-detect the correct filling mode for a symbol  |
+//| Queries SYMBOL_FILLING_MODE bitmask and picks the best match.    |
+//+------------------------------------------------------------------+
+ENUM_ORDER_TYPE_FILLING CExecutor::GetFilling(string symbol)
+  {
+   int modes = (int)SymbolInfoInteger(symbol, SYMBOL_FILLING_MODE);
+   if((modes & SYMBOL_FILLING_FOK) != 0) return ORDER_FILLING_FOK;
+   if((modes & SYMBOL_FILLING_IOC) != 0) return ORDER_FILLING_IOC;
+   return ORDER_FILLING_RETURN;
+  }
+
+//+------------------------------------------------------------------+
 double CExecutor::PipsToPrice(string symbol, double pips)
   {
    double point  = SymbolInfoDouble(symbol, SYMBOL_POINT);
@@ -870,7 +884,7 @@ bool CExecutor::Execute_PlaceMarket(STask &task, SExecResult &r)
    req.sl        = sl;
    req.tp        = tp;
    req.deviation = 10;
-   req.type_filling = ORDER_FILLING_IOC;
+   req.type_filling = GetFilling(symbol);
    if(task.filters.has_magic)
       req.magic = (ulong)task.filters.magic;
    else
