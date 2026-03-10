@@ -488,6 +488,7 @@ FilterSet -- include only fields relevant to the instruction:
   "magic"?:      number,    // EA magic number
   "symbol"?:     string,    // e.g. "XAUUSD", "EURUSD" -- always uppercase
   "ticket"?:     number,    // specific position or order ticket number
+  "task_id"?:    number,    // EA task queue ID (used ONLY with cancel_task)
   "profit_lt"?:  number,    // floating P&L strictly less than this value
   "profit_gte"?: number,    // floating P&L greater than or equal to this value
   "type"?:       string,    // "buy"|"sell"|"buy_limit"|"sell_limit"|"buy_stop"|"sell_stop"
@@ -661,7 +662,10 @@ Simply set requires_confirmation: true.
 5. Symbol names always uppercase in output regardless of how operator wrote them
 6. entry_offset_pips: negative = below current price, positive = above
 7. When instruction says "notify me" without a specific action -> verb is "watch" with notification
-8. When instruction says "cancel my task watching X" -> verb is "cancel_task", noun is "task"
+8. When instruction says "cancel task" or "stop task":
+   - "cancel task 1" or "stop task 3" -> verb is "cancel_task", filters.task_id = the number (this is a task queue ID, NOT a ticket)
+   - "stop watching ticket 123" -> verb is "cancel_task", filters.ticket = 123 (finds the task monitoring that ticket)
+   - "stop watching everything" -> verb is "cancel_task", empty filters (cancels all)
 9. decomposition must accurately reflect the parsed intent -- it is used for operator transparency
 10. prompt_version must always be "2.1" exactly
 11. "close [ticket]" -> use close_positions. The EA will automatically try cancel_order as fallback if no position matches.`;
@@ -678,6 +682,7 @@ const TESTS = [
   { id:"T08", cat:"One-Shot", instruction:"move stop loss to breakeven on all XAUUSD positions",               outcome:"ACT",     verb:"modify_position", noun:"positions" },
   { id:"T09", cat:"One-Shot", instruction:"close everything",                                                  outcome:"ACT",     verb:"close_positions", noun:"positions" },
   { id:"T10", cat:"One-Shot", instruction:"stop watching everything",                                          outcome:"ACT",     verb:"cancel_task",     noun:"task"      },
+  { id:"T10b",cat:"One-Shot", instruction:"cancel task 3",                                                       outcome:"ACT",     verb:"cancel_task",     noun:"task",     note:"Must use filters.task_id=3, NOT filters.ticket" },
   // CONDITIONAL
   { id:"T11", cat:"Conditional", instruction:"when ticket 123456789 is in $100 profit reduce volume 10% and set SL to breakeven", outcome:"ACT", verb:"watch", noun:"positions", note:"Compound -- on_trigger should have 2 sub-tasks" },
   { id:"T12", cat:"Conditional", instruction:"buy gold limit 20 pips below current price SL 5 pips cancel if price drops below entry", outcome:"ACT", verb:"place_pending", noun:"orders" },

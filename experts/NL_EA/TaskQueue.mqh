@@ -95,6 +95,7 @@ struct STaskFilters
    bool     has_magic;      long     magic;
    bool     has_symbol;     string   symbol;
    bool     has_ticket;     ulong    ticket;
+   bool     has_task_id;    int      task_id;
    bool     has_profit_lt;  double   profit_lt;
    bool     has_profit_gte; double   profit_gte;
    bool     has_type;       string   type;
@@ -104,7 +105,8 @@ struct STaskFilters
    void Clear()
      {
       has_magic=false; magic=0; has_symbol=false; symbol="";
-      has_ticket=false; ticket=0; has_profit_lt=false; profit_lt=0;
+      has_ticket=false; ticket=0; has_task_id=false; task_id=0;
+      has_profit_lt=false; profit_lt=0;
       has_profit_gte=false; profit_gte=0; has_type=false; type="";
       has_comment=false; comment=""; has_time_after=false; time_after=0;
      }

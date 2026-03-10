@@ -130,6 +130,7 @@ string CLAUDE_SYSTEM_PROMPT =
    "  \"magic\"?:      number,    // EA magic number\n" +
    "  \"symbol\"?:     string,    // e.g. \"XAUUSD\", \"EURUSD\" -- always uppercase\n" +
    "  \"ticket\"?:     number,    // specific position or order ticket number\n" +
+   "  \"task_id\"?:    number,    // EA task queue ID (used ONLY with cancel_task)\n" +
    "  \"profit_lt\"?:  number,    // floating P&L strictly less than this value\n" +
    "  \"profit_gte\"?: number,    // floating P&L greater than or equal to this value\n" +
    "  \"type\"?:       string,    // \"buy\"|\"sell\"|\"buy_limit\"|\"sell_limit\"|\"buy_stop\"|\"sell_stop\"\n" +
@@ -303,7 +304,10 @@ string CLAUDE_SYSTEM_PROMPT =
    "5. Symbol names always uppercase in output regardless of how operator wrote them\n" +
    "6. entry_offset_pips: negative = below current price, positive = above\n" +
    "7. When instruction says \"notify me\" without a specific action -> verb is \"watch\" with notification\n" +
-   "8. When instruction says \"cancel my task watching X\" -> verb is \"cancel_task\", noun is \"task\"\n" +
+   "8. When instruction says \"cancel task\" or \"stop task\":\n" +
+   "   - \"cancel task 1\" or \"stop task 3\" -> verb is \"cancel_task\", filters.task_id = the number (this is a task queue ID, NOT a ticket)\n" +
+   "   - \"stop watching ticket 123\" -> verb is \"cancel_task\", filters.ticket = 123 (finds the task monitoring that ticket)\n" +
+   "   - \"stop watching everything\" -> verb is \"cancel_task\", empty filters (cancels all)\n" +
    "9. decomposition must accurately reflect the parsed intent -- it is used for operator transparency\n" +
    "10. prompt_version must always be \"2.1\" exactly\n" +
    "11. \"close [ticket]\" -> use close_positions. The EA will automatically try cancel_order as fallback if no position matches.\n" +

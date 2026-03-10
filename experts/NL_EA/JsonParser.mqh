@@ -111,6 +111,7 @@ void CJsonParser::ParseFilters(CJAVal &n, STaskFilters &f)
    if(n["magic"].m_type  != jtUNDEF && n["magic"].m_type  != jtNULL) { f.has_magic=true;  f.magic=(long)n["magic"].ToInt(); }
    if(n["symbol"].m_type != jtUNDEF && n["symbol"].m_type != jtNULL) { f.has_symbol=true; f.symbol=n["symbol"].ToStr(); }
    if(n["ticket"].m_type != jtUNDEF && n["ticket"].m_type != jtNULL) { f.has_ticket=true; f.ticket=(ulong)n["ticket"].ToInt(); }
+   if(n["task_id"].m_type != jtUNDEF && n["task_id"].m_type != jtNULL) { f.has_task_id=true; f.task_id=(int)n["task_id"].ToInt(); }
    if(n["profit_lt"].m_type  != jtUNDEF && n["profit_lt"].m_type  != jtNULL) { f.has_profit_lt=true;  f.profit_lt=n["profit_lt"].ToDbl(); }
    if(n["profit_gte"].m_type != jtUNDEF && n["profit_gte"].m_type != jtNULL) { f.has_profit_gte=true; f.profit_gte=n["profit_gte"].ToDbl(); }
    if(n["type"].m_type    != jtUNDEF && n["type"].m_type    != jtNULL) { f.has_type=true;    f.type=n["type"].ToStr(); }

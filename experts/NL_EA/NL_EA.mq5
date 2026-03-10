@@ -331,6 +331,22 @@ void HandleTriggeredTask(int task_id)
 //+------------------------------------------------------------------+
 void HandleCancelTask(STask &task)
   {
+   //── Cancel by task_id (e.g. "cancel task 1") ───────────────
+   if(task.filters.has_task_id)
+     {
+      int tid = task.filters.task_id;
+      if(g_queue.Remove(tid))
+        {
+         g_telegram.SendWithMode("Task #" + IntegerToString(tid) + " CANCELLED\n"
+                                 + "MT5 positions unchanged", g_state.ModeLabel());
+        }
+      else
+         g_telegram.SendWithMode("No active task #" + IntegerToString(tid), g_state.ModeLabel());
+      g_state.SetIdle();
+      return;
+     }
+
+   //── Cancel all (no filters) ────────────────────────────────
    if(!task.filters.has_ticket && !task.filters.has_magic && !task.filters.has_symbol)
      {
       int count = g_queue.Count();
@@ -341,6 +357,7 @@ void HandleCancelTask(STask &task)
       return;
      }
 
+   //── Cancel by ticket (task watching that ticket) ───────────
    if(task.filters.has_ticket)
      {
       int ids[];
