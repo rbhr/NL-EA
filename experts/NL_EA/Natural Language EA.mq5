@@ -18,13 +18,13 @@
 #property version   "4.1"
 #property strict
 
-#include "State.mqh"
-#include "TaskQueue.mqh"
-#include "JsonParser.mqh"
-#include "Claude.mqh"
-#include "Telegram.mqh"
-#include "Executor.mqh"
-#include "SystemPrompt.mqh"
+#include <NL_EA/State.mqh>
+#include <NL_EA/TaskQueue.mqh>
+#include <NL_EA/JsonParser.mqh>
+#include <NL_EA/Claude.mqh>
+#include <NL_EA/Telegram.mqh>
+#include <NL_EA/Executor.mqh>
+#include <NL_EA/SystemPrompt.mqh>
 
 //+------------------------------------------------------------------+
 //| Inputs                                                           |
@@ -36,7 +36,7 @@ input int          InpPollIntervalMs   = 1000;            // Poll interval (ms)
 input ENUM_EA_MODE InpStartupMode      = EA_MODE_TRAINING;// Startup mode
 input double       InpConfirmThreshold = 500.0;           // P&L confirm threshold ($)
 input long         InpMagicNumber      = 0;               // Default Magic Number
-input string       InpOrderComment     = "Natural Language EA"; // Default Order Comment
+input string       InpOrderComment     = "NL-EA";         // Default Order Comment
 input bool         InpForceUnlock      = false;           // Force unlock on startup
 
 //+------------------------------------------------------------------+
